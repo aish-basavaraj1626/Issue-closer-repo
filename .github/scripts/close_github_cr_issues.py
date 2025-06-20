@@ -145,10 +145,6 @@ def main():
             print("⏩ Skipped: Already has 'done' label\n")
             continue
 
-        if created_at > two_weeks_ago:
-            print("⏩ Skipped: Not older than 2 weeks\n")
-            continue
-
         comments = get_issue_comments(issue_number)
         if not has_required_checklist(comments):
             print("⏩ Skipped: Checklist not complete\n")
