@@ -44,7 +44,7 @@ def has_required_checklist(comments):
     for comment in comments:
         lines = comment["body"].splitlines()
         normalized = {line.strip() for line in lines if line.strip().startswith("✓")}
-        if REQUIRED_CHECKLIST.issubset(normalized):
+        if CHECKLIST_ITEMS.issubset(normalized):
             return True
     return False
 
@@ -117,33 +117,28 @@ def main():
 
         print(f"➡️ #{issue_number}: {title} | Created: {created_at.date()} | Labels: {', '.join(labels)}")
 
-        # Must have "Normal Change Request"
         if REQUIRED_LABEL not in labels:
             print(f"⏩ Skipping: missing '{REQUIRED_LABEL}' label\n")
             continue
 
-        # Must have either "Application" or "Infrastructure"
         if not (SECONDARY_LABELS & labels):
             print(f"⏩ Skipping: missing one of {SECONDARY_LABELS}\n")
             continue
 
-        # Skip if already closed
         if DONE_LABEL in labels:
             print(f"⏩ Skipping: already labeled as 'done'\n")
             continue
 
-        # Must have complete checklist
         comments = get_issue_comments(issue_number)
         if not has_required_checklist(comments):
             print(f"⏩ Skipping: checklist not complete\n")
             continue
 
-        # Must be in Cloud SRE Team project with Status = Done
         if not issue_has_project_status_done(issue_node_id):
             print(f"⏩ Skipping: project status is not 'Done'\n")
             continue
 
-        # Determine which labels to add
+        # Decide which labels to add
         labels_to_add = [DONE_LABEL]
         if RESOLUTION_LABEL not in labels:
             labels_to_add.append(RESOLUTION_LABEL)
