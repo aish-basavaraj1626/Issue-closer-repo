@@ -39,11 +39,10 @@ def has_required_checklist(comments):
     for comment in comments:
         raw_body = comment["body"].strip().lower()
 
-        # Remove outer **bold** block (if any)
+        # Remove outer bold markdown if wrapped
         if raw_body.startswith("**") and raw_body.endswith("**"):
             raw_body = raw_body[2:-2]
 
-        # Split by newline to extract individual checklist lines
         lines = raw_body.splitlines()
         normalized = set()
 
@@ -100,9 +99,10 @@ def issue_has_project_status_done(issue_node_id):
             continue
         for field in item["fieldValues"]["nodes"]:
             if field.get("field", {}).get("name") == "Status":
-                print(f"📝 Status found: {field.get('name')}")
-            if field.get("field", {}).get("name") == "Status" and field.get("name") == "Done":
-                return True
+                status_value = field.get("name", "").strip().lower()
+                print(f"📝 Found project status: {status_value}")
+                if "done" in status_value:
+                    return True
     return False
 
 def add_labels(issue_number, labels):
@@ -155,7 +155,7 @@ def main():
             print(f"⏩ Skipped: Project status is not 'Done'\n")
             continue
 
-        # Determine which labels to add
+        # Add necessary labels before closing
         labels_to_add = [DONE_LABEL]
         if RESOLUTION_LABEL not in labels:
             labels_to_add.append(RESOLUTION_LABEL)
