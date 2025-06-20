@@ -1,4 +1,5 @@
 import os
+import re
 import requests
 from datetime import datetime
 from dateutil.parser import parse as parse_date
@@ -19,13 +20,7 @@ REQUIRED_LABEL = "Normal Change Request"
 SECONDARY_LABELS = {"Application", "Infrastructure"}
 DONE_LABEL = "done"
 RESOLUTION_LABEL = "Resolution/Done"
-CHECKLIST_ITEMS = {
-    "✓ Assessed",
-    "✓ Authorized",
-    "✓ Scheduled",
-    "✓ Implemented",
-    "✓ Reviewed"
-}
+EXPECTED_CHECKLIST_KEYWORDS = {"assessed", "authorized", "scheduled", "implemented", "reviewed"}
 
 def get_issues():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues"
@@ -42,10 +37,15 @@ def get_issue_comments(issue_number):
 
 def has_required_checklist(comments):
     for comment in comments:
-        lines = comment["body"].splitlines()
-        normalized = {line.strip() for line in lines if line.strip().startswith("✓")}
-        print(f"📋 Found checklist lines: {normalized}")
-        if CHECKLIST_ITEMS.issubset(normalized):
+        lines = comment["body"].lower().splitlines()
+        normalized = set()
+        for line in lines:
+            line = line.strip()
+            if line.startswith(("✔️", "✓")):
+                cleaned = re.sub(r"[✓✔️\*\-\[\]x]", "", line).strip()
+                normalized.add(cleaned)
+        print(f"📋 Found normalized checklist: {normalized}")
+        if EXPECTED_CHECKLIST_KEYWORDS.issubset(normalized):
             return True
     return False
 
