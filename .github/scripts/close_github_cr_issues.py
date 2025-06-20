@@ -3,7 +3,7 @@ import json
 import requests
 import unicodedata
 import re
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from dateutil.parser import parse as parse_date
 
 # Env Variables
@@ -105,10 +105,27 @@ def issue_has_project_status_done(issue_node_id):
         print(f"⚠️ Project check failed: {e}")
     return False
 
-def add_labels(issue_number, labels):
-    url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/labels"
-    print(f"🏷️ Adding labels to #{issue_number}: {labels}")
-    response = requests.post(url, headers=HEADERS, json={"labels": labels})
+def add_labels(issue_number, labels_to_add):
+    # Ensure labels_to_add is always a list
+    if isinstance(labels_to_add, str):
+        labels_to_add = [labels_to_add]
+
+    # Get current labels to avoid duplicates
+    url_get = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}"
+    response = requests.get(url_get, headers=HEADERS)
+    response.raise_for_status()
+    existing_labels = {label["name"] for label in response.json().get("labels", [])}
+
+    # Filter out labels already present
+    new_labels = [label for label in labels_to_add if label not in existing_labels]
+
+    if not new_labels:
+        print(f"ℹ️ Label(s) {labels_to_add} already present on issue #{issue_number}, skipping label addition.")
+        return
+
+    print(f"🏷️ Adding labels to #{issue_number}: {new_labels}")
+    url_post = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/labels"
+    response = requests.post(url_post, headers=HEADERS, json={"labels": new_labels})
     response.raise_for_status()
 
 def close_issue(issue_number):
@@ -121,7 +138,6 @@ def main():
     issues = get_issues()
     print(f"\n🔍 Found {len(issues)} open issues\n")
     closed_issues = []
-    two_weeks_ago = datetime.now(timezone.utc) - timedelta(days=14)
 
     for issue in issues:
         issue_number = issue["number"]
