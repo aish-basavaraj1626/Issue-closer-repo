@@ -1,15 +1,16 @@
 import os
 import re
+import unicodedata
 import requests
 from datetime import datetime
 from dateutil.parser import parse as parse_date
 
-# Environment variables from GitHub Actions
+# ENVIRONMENT SETUP
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-REPO = os.getenv("REPO")  # format: org/repo
+REPO = os.getenv("REPO")
 
 if not GITHUB_TOKEN or not REPO or "/" not in REPO:
-    raise Exception(f"❌ GITHUB_TOKEN or REPO not set properly. Got: GITHUB_TOKEN={'set' if GITHUB_TOKEN else 'unset'}, REPO={REPO}")
+    raise Exception(f"❌ GITHUB_TOKEN or REPO not set properly. GITHUB_TOKEN={'set' if GITHUB_TOKEN else 'unset'}, REPO={REPO}")
 
 REPO_OWNER, REPO_NAME = REPO.strip().split("/")
 HEADERS = {
@@ -17,14 +18,18 @@ HEADERS = {
     "Accept": "application/vnd.github+json"
 }
 
-# Labels & checklist
+# CONFIGURATION
 REQUIRED_LABEL = "Normal Change Request"
 SECONDARY_LABELS = {"Application", "Infrastructure"}
 DONE_LABEL = "done"
 RESOLUTION_LABEL = "Resolution/Done"
 EXPECTED_CHECKLIST_KEYWORDS = {"assessed", "authorized", "scheduled", "implemented", "reviewed"}
 
-# 1. Get open issues
+# UNICODE NORMALIZER
+def normalize_unicode(text):
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
+
+# FETCH ISSUES
 def get_issues():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues"
     params = {"state": "open", "per_page": 100}
@@ -32,37 +37,32 @@ def get_issues():
     response.raise_for_status()
     return response.json()
 
-# 2. Get comments for a given issue
+# FETCH COMMENTS
 def get_issue_comments(issue_number):
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/comments"
     response = requests.get(url, headers=HEADERS)
     response.raise_for_status()
     return response.json()
 
-# 3. Check if checklist is present
+# CHECK CHECKLIST
 def has_required_checklist(comments):
     for comment in comments:
         raw_body = comment["body"].strip().lower()
-
-        # Remove outer markdown bold (if any)
         if raw_body.startswith("**") and raw_body.endswith("**"):
             raw_body = raw_body[2:-2]
-
         lines = raw_body.splitlines()
         normalized = set()
-
         for line in lines:
             line = line.strip()
             if line.startswith(("✔️", "✓")):
                 cleaned = re.sub(r"[✓✔️\*\-:]", "", line).strip().lower()
                 normalized.add(cleaned)
-
         print(f"📋 Found normalized checklist: {normalized}")
         if EXPECTED_CHECKLIST_KEYWORDS.issubset(normalized):
             return True
     return False
 
-# 4. Check GitHub Project status using GraphQL
+# CHECK PROJECT STATUS
 def issue_has_project_status_done(issue_node_id):
     query = """
     query($issueId: ID!) {
@@ -106,27 +106,29 @@ def issue_has_project_status_done(issue_node_id):
         for field in item["fieldValues"]["nodes"]:
             if field.get("field", {}).get("name") == "Status":
                 status_value = field.get("name", "").strip()
-                print(f"📝 Found project status: '{status_value}'")
-                if "done" in status_value.lower():
+                print(f"📝 Found raw status: '{status_value}'")
+                normalized = normalize_unicode(status_value)
+                print(f"🧹 Normalized status: '{normalized}'")
+                if "done" in normalized:
                     print("✅ Matched project status containing 'done'")
                     return True
     return False
 
-# 5. Add labels to issue
+# ADD LABELS
 def add_labels(issue_number, labels):
     print(f"🏷️ Adding labels to #{issue_number}: {labels}")
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/labels"
     response = requests.post(url, headers=HEADERS, json={"labels": labels})
     response.raise_for_status()
 
-# 6. Close the issue
+# CLOSE ISSUE
 def close_issue(issue_number):
     print(f"🔒 Closing issue #{issue_number}")
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}"
     response = requests.patch(url, headers=HEADERS, json={"state": "closed"})
     response.raise_for_status()
 
-# Main logic
+# MAIN FUNCTION
 def main():
     issues = get_issues()
     closed_issues = []
@@ -165,7 +167,6 @@ def main():
             print(f"⏩ Skipped: Project status is not 'Done'\n")
             continue
 
-        # Add labels and close
         labels_to_add = [DONE_LABEL]
         if RESOLUTION_LABEL not in labels:
             labels_to_add.append(RESOLUTION_LABEL)
