@@ -1,9 +1,14 @@
 name: Close CR Issues Automatically
 
 on:
-  pull_request:
+  push:
     branches:
       - main
+
+#on:
+#  pull_request:
+#    branches:
+#      - main
 #  workflow_dispatch:
 #  schedule:
 #    - cron: '0 0 * * 1'  # Every Monday at 00:00 UTC
