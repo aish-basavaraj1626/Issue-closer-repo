@@ -37,3 +37,4 @@ jobs:
           REPO: aish-basavaraj1626/Issue-closer-repo
         run: |
           python .github/scripts/close_github_cr_issues.py
+
