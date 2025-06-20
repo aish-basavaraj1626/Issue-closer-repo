@@ -103,7 +103,8 @@ def issue_has_project_status_done(issue_node_id):
             continue
         for field in item["fieldValues"]["nodes"]:
             print("🧪 RAW FIELD DUMP:")
-            print(field)
+            print(field)  # THIS IS THE DEBUG LINE YOU NEED
+
             if field.get("field", {}).get("name") == "Status":
                 status_value = field.get("name", "").strip()
                 normalized = normalize_unicode(status_value)
