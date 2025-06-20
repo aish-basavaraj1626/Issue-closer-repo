@@ -44,6 +44,7 @@ def has_required_checklist(comments):
     for comment in comments:
         lines = comment["body"].splitlines()
         normalized = {line.strip() for line in lines if line.strip().startswith("✓")}
+        print(f"📋 Found checklist lines: {normalized}")
         if CHECKLIST_ITEMS.issubset(normalized):
             return True
     return False
@@ -83,21 +84,26 @@ def issue_has_project_status_done(issue_node_id):
     )
     response.raise_for_status()
     data = response.json()
+    print("📦 Project field values received")
 
     for item in data["data"]["node"]["projectItems"]["nodes"]:
         if item["project"]["title"] != "Cloud SRE Team":
             continue
         for field in item["fieldValues"]["nodes"]:
+            if field.get("field", {}).get("name") == "Status":
+                print(f"📝 Status found: {field.get('name')}")
             if field.get("field", {}).get("name") == "Status" and field.get("name") == "Done":
                 return True
     return False
 
 def add_labels(issue_number, labels):
+    print(f"🏷️ Adding labels to #{issue_number}: {labels}")
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/labels"
     response = requests.post(url, headers=HEADERS, json={"labels": labels})
     response.raise_for_status()
 
 def close_issue(issue_number):
+    print(f"🔒 Closing issue #{issue_number}")
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}"
     response = requests.patch(url, headers=HEADERS, json={"state": "closed"})
     response.raise_for_status()
@@ -115,36 +121,36 @@ def main():
         created_at = parse_date(issue["created_at"])
         labels = {label["name"] for label in issue.get("labels", [])}
 
-        print(f"➡️ #{issue_number}: {title} | Created: {created_at.date()} | Labels: {', '.join(labels)}")
+        print(f"➡️ #{issue_number}: {title}")
+        print(f"   📆 Created on: {created_at.date()}")
+        print(f"   🏷️ Labels: {labels}")
 
         if REQUIRED_LABEL not in labels:
-            print(f"⏩ Skipping: missing '{REQUIRED_LABEL}' label\n")
+            print(f"⏩ Skipped: Missing '{REQUIRED_LABEL}' label\n")
             continue
 
         if not (SECONDARY_LABELS & labels):
-            print(f"⏩ Skipping: missing one of {SECONDARY_LABELS}\n")
+            print(f"⏩ Skipped: Missing one of {SECONDARY_LABELS}\n")
             continue
 
         if DONE_LABEL in labels:
-            print(f"⏩ Skipping: already labeled as 'done'\n")
+            print(f"⏩ Skipped: Already has '{DONE_LABEL}' label\n")
             continue
 
         comments = get_issue_comments(issue_number)
         if not has_required_checklist(comments):
-            print(f"⏩ Skipping: checklist not complete\n")
+            print(f"⏩ Skipped: Checklist not complete\n")
             continue
 
         if not issue_has_project_status_done(issue_node_id):
-            print(f"⏩ Skipping: project status is not 'Done'\n")
+            print(f"⏩ Skipped: Project status is not 'Done'\n")
             continue
 
-        # Decide which labels to add
+        # Determine which labels to add
         labels_to_add = [DONE_LABEL]
         if RESOLUTION_LABEL not in labels:
             labels_to_add.append(RESOLUTION_LABEL)
 
-        print(f"✅ Closing #{issue_number}: {title}")
-        print(f"🏷️  Adding labels: {labels_to_add}\n")
         add_labels(issue_number, labels_to_add)
         close_issue(issue_number)
         closed_issues.append(f"#{issue_number}: {title}")
