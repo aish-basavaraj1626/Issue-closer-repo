@@ -26,7 +26,6 @@ RESOLUTION_LABEL = "Resolution/Done"
 EXPECTED_CHECKLIST_KEYWORDS = {"assessed", "authorized", "scheduled", "implemented", "reviewed"}
 
 def normalize_unicode(text):
-    """Strip emoji, accents, and convert to lowercase alphanumerics"""
     text = unicodedata.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii")
     return re.sub(r"[^\w]", "", text).lower()
@@ -96,15 +95,17 @@ def issue_has_project_status_done(issue_node_id):
     )
     response.raise_for_status()
     data = response.json()
-    print("📦 Project field values received")
+
+    # 🔍 FULL DUMP of projectItems
+    import json
+    print("📦 FULL PROJECT DUMP:\n", json.dumps(data, indent=2))
 
     for item in data["data"]["node"]["projectItems"]["nodes"]:
         if item["project"]["title"] != "Cloud SRE Team":
             continue
         for field in item["fieldValues"]["nodes"]:
             print("🧪 RAW FIELD DUMP:")
-            print(field)  # THIS IS THE DEBUG LINE YOU NEED
-
+            print(field)
             if field.get("field", {}).get("name") == "Status":
                 status_value = field.get("name", "").strip()
                 normalized = normalize_unicode(status_value)
