@@ -3,7 +3,7 @@ import json
 import requests
 import unicodedata
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dateutil.parser import parse as parse_date
 
 # Env Variables
@@ -23,7 +23,7 @@ HEADERS = {
 # Constants
 REQUIRED_PRIMARY_LABEL = "Normal Change Request"
 REQUIRED_SECONDARY_LABELS = {"Application", "Infrastructure"}
-LABELS_TO_ADD_ON_CLOSE = ["done", "Resolution/Done"]
+LABELS_TO_ADD_ON_CLOSE = "Resolution/Done"
 REQUIRED_CHECKLIST = {
     "assessed", "authorized", "scheduled", "implemented", "reviewed"
 }
@@ -121,7 +121,7 @@ def main():
     issues = get_issues()
     print(f"\n🔍 Found {len(issues)} open issues\n")
     closed_issues = []
-    two_weeks_ago = datetime.now() - timedelta(days=14)
+    two_weeks_ago = datetime.now(timezone.utc) - timedelta(days=14)
 
     for issue in issues:
         issue_number = issue["number"]
