@@ -37,18 +37,20 @@ def get_issue_comments(issue_number):
 
 def has_required_checklist(comments):
     for comment in comments:
-        raw = comment["body"].strip().lower()
+        raw_body = comment["body"].strip().lower()
 
-        # Remove outer **bold** markdown
-        raw = raw.strip("*")
+        # Remove outer **bold** block (if any)
+        if raw_body.startswith("**") and raw_body.endswith("**"):
+            raw_body = raw_body[2:-2]
 
-        # Normalize by splitting on tick marks
-        parts = re.split(r"[✓✔️]", raw)
+        # Split by newline to extract individual checklist lines
+        lines = raw_body.splitlines()
         normalized = set()
 
-        for part in parts:
-            cleaned = part.strip(" *:-").lower()
-            if cleaned:
+        for line in lines:
+            line = line.strip()
+            if line.startswith(("✔️", "✓")):
+                cleaned = re.sub(r"[✓✔️\*\-:]", "", line).strip().lower()
                 normalized.add(cleaned)
 
         print(f"📋 Found normalized checklist: {normalized}")
