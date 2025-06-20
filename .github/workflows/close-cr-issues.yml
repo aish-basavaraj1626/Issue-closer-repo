@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      REPO: wso2-enterprise/choreo  # Update if needed
+      REPO: aish-basavaraj1626/Issue-closer-repo  # Update if needed
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
