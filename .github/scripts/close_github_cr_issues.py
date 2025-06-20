@@ -1,6 +1,6 @@
 import os
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from dateutil.parser import parse as parse_date
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
@@ -15,10 +15,11 @@ HEADERS = {
     "Accept": "application/vnd.github+json"
 }
 
-REQUIRED_PRIMARY_LABEL = "Normal Change Request"
-REQUIRED_SECONDARY_LABELS = {"Application", "Infrastructure"}
-LABELS_TO_ADD_ON_CLOSE = ["done", "Resolution/Done"]
-REQUIRED_CHECKLIST = {
+REQUIRED_LABEL = "Normal Change Request"
+SECONDARY_LABELS = {"Application", "Infrastructure"}
+DONE_LABEL = "done"
+RESOLUTION_LABEL = "Resolution/Done"
+CHECKLIST_ITEMS = {
     "✓ Assessed",
     "✓ Authorized",
     "✓ Scheduled",
@@ -28,10 +29,7 @@ REQUIRED_CHECKLIST = {
 
 def get_issues():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues"
-    params = {
-        "state": "open",
-        "per_page": 100
-    }
+    params = {"state": "open", "per_page": 100}
     response = requests.get(url, headers=HEADERS, params=params)
     response.raise_for_status()
     return response.json()
@@ -45,7 +43,7 @@ def get_issue_comments(issue_number):
 def has_required_checklist(comments):
     for comment in comments:
         body = comment["body"]
-        if all(item in body for item in REQUIRED_CHECKLIST):
+        if all(item in body for item in CHECKLIST_ITEMS):
             return True
     return False
 
@@ -105,7 +103,6 @@ def close_issue(issue_number):
 
 def main():
     issues = get_issues()
-    two_weeks_ago = datetime.utcnow() - timedelta(days=14)
     closed_issues = []
 
     print(f"\n🔍 Found {len(issues)} open issues\n")
@@ -119,38 +116,45 @@ def main():
 
         print(f"➡️ #{issue_number}: {title} | Created: {created_at.date()} | Labels: {', '.join(labels)}")
 
-        if REQUIRED_PRIMARY_LABEL not in labels:
-            print(f"⏩ Skipping: missing '{REQUIRED_PRIMARY_LABEL}' label\n")
+        # Must have "Normal Change Request"
+        if REQUIRED_LABEL not in labels:
+            print(f"⏩ Skipping: missing '{REQUIRED_LABEL}' label\n")
             continue
 
-        if not (REQUIRED_SECONDARY_LABELS & labels):
-            print(f"⏩ Skipping: missing 'Application' or 'Infrastructure' label\n")
+        # Must have either "Application" or "Infrastructure"
+        if not (SECONDARY_LABELS & labels):
+            print(f"⏩ Skipping: missing one of {SECONDARY_LABELS}\n")
             continue
 
-        if "done" in labels or "Resolution/Done" in labels:
-            print(f"⏩ Skipping: already labeled as done\n")
+        # Skip if already closed
+        if DONE_LABEL in labels:
+            print(f"⏩ Skipping: already labeled as 'done'\n")
             continue
 
-        if created_at > two_weeks_ago:
-            print(f"⏩ Skipping: not older than 2 weeks\n")
-            continue
-
+        # Must have complete checklist
         comments = get_issue_comments(issue_number)
         if not has_required_checklist(comments):
             print(f"⏩ Skipping: checklist not complete\n")
             continue
 
+        # Must be in Cloud SRE Team project with Status = Done
         if not issue_has_project_status_done(issue_node_id):
             print(f"⏩ Skipping: project status is not 'Done'\n")
             continue
 
-        print(f"✅ Closing #{issue_number}: {title}\n")
-        add_labels(issue_number, LABELS_TO_ADD_ON_CLOSE)
+        # Determine which labels to add
+        labels_to_add = [DONE_LABEL]
+        if RESOLUTION_LABEL not in labels:
+            labels_to_add.append(RESOLUTION_LABEL)
+
+        print(f"✅ Closing #{issue_number}: {title}")
+        print(f"🏷️  Adding labels: {labels_to_add}\n")
+        add_labels(issue_number, labels_to_add)
         close_issue(issue_number)
         closed_issues.append(f"#{issue_number}: {title}")
 
     print("\n📦 Cleanup Summary")
-    print(f"✅ Total issues closed: {len(closed_issues)}\n")
+    print(f"✅ Total issues closed: {len(closed_issues)}")
     for closed in closed_issues:
         print(f"🔒 {closed}")
 
