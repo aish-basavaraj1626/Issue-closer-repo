@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+permissions:
+  issues: write
+  contents: read
 #on:
 #  pull_request:
 #    branches:
