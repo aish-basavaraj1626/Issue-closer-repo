@@ -42,8 +42,9 @@ def get_issue_comments(issue_number):
 
 def has_required_checklist(comments):
     for comment in comments:
-        body = comment["body"]
-        if all(item in body for item in CHECKLIST_ITEMS):
+        lines = comment["body"].splitlines()
+        normalized = {line.strip() for line in lines if line.strip().startswith("✓")}
+        if REQUIRED_CHECKLIST.issubset(normalized):
             return True
     return False
 
