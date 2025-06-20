@@ -14,27 +14,22 @@ on:
 #    - cron: '0 0 * * 1'  # Every Monday at 00:00 UTC
 
 jobs:
-  auto-close-cr-issues:
+  close-cr-issues:
     runs-on: ubuntu-latest
-
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: wso2-enterprise/choreo  # Update if needed
     steps:
-      - name: Checkout repo
+      - name: Checkout code
         uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install requests python-dateutil
+        run: pip install requests python-dateutil
 
       - name: Run cleanup script
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: aish-basavaraj1626/Issue-closer-repo
-        run: |
-          python .github/scripts/close_github_cr_issues.py
-
+        run: python .github/scripts/close_github_cr_issues.py

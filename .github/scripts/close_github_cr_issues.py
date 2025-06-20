@@ -5,7 +5,7 @@ import requests
 from datetime import datetime
 from dateutil.parser import parse as parse_date
 
-# ENVIRONMENT SETUP
+# ENVIRONMENT VARIABLES
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 REPO = os.getenv("REPO")
 
@@ -25,11 +25,12 @@ DONE_LABEL = "done"
 RESOLUTION_LABEL = "Resolution/Done"
 EXPECTED_CHECKLIST_KEYWORDS = {"assessed", "authorized", "scheduled", "implemented", "reviewed"}
 
-# UNICODE NORMALIZER
 def normalize_unicode(text):
-    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").lower()
+    """Strip emoji, accents, and convert to lowercase alphanumerics"""
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^\w]", "", text).lower()
 
-# FETCH ISSUES
 def get_issues():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues"
     params = {"state": "open", "per_page": 100}
@@ -37,32 +38,29 @@ def get_issues():
     response.raise_for_status()
     return response.json()
 
-# FETCH COMMENTS
 def get_issue_comments(issue_number):
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/comments"
     response = requests.get(url, headers=HEADERS)
     response.raise_for_status()
     return response.json()
 
-# CHECK CHECKLIST
 def has_required_checklist(comments):
     for comment in comments:
-        raw_body = comment["body"].strip().lower()
-        if raw_body.startswith("**") and raw_body.endswith("**"):
-            raw_body = raw_body[2:-2]
-        lines = raw_body.splitlines()
+        body = comment["body"].strip()
+        if body.startswith("**") and body.endswith("**"):
+            body = body[2:-2]
+        lines = body.splitlines()
         normalized = set()
         for line in lines:
             line = line.strip()
-            if line.startswith(("✔️", "✓")):
-                cleaned = re.sub(r"[✓✔️\*\-:]", "", line).strip().lower()
+            if line.startswith(("✔️", "✓", "- [x]", "* [x]")):
+                cleaned = re.sub(r"[✓✔️\*\-\[\]xX:]", "", line).strip().lower()
                 normalized.add(cleaned)
         print(f"📋 Found normalized checklist: {normalized}")
         if EXPECTED_CHECKLIST_KEYWORDS.issubset(normalized):
             return True
     return False
 
-# CHECK PROJECT STATUS
 def issue_has_project_status_done(issue_node_id):
     query = """
     query($issueId: ID!) {
@@ -104,31 +102,30 @@ def issue_has_project_status_done(issue_node_id):
         if item["project"]["title"] != "Cloud SRE Team":
             continue
         for field in item["fieldValues"]["nodes"]:
+            print("🧪 RAW FIELD DUMP:")
+            print(field)
             if field.get("field", {}).get("name") == "Status":
                 status_value = field.get("name", "").strip()
-                print(f"📝 Found raw status: '{status_value}'")
                 normalized = normalize_unicode(status_value)
+                print(f"📝 Found raw status: '{status_value}'")
                 print(f"🧹 Normalized status: '{normalized}'")
                 if "done" in normalized:
                     print("✅ Matched project status containing 'done'")
                     return True
     return False
 
-# ADD LABELS
 def add_labels(issue_number, labels):
     print(f"🏷️ Adding labels to #{issue_number}: {labels}")
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/labels"
     response = requests.post(url, headers=HEADERS, json={"labels": labels})
     response.raise_for_status()
 
-# CLOSE ISSUE
 def close_issue(issue_number):
     print(f"🔒 Closing issue #{issue_number}")
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}"
     response = requests.patch(url, headers=HEADERS, json={"state": "closed"})
     response.raise_for_status()
 
-# MAIN FUNCTION
 def main():
     issues = get_issues()
     closed_issues = []
