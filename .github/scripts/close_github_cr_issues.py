@@ -4,8 +4,9 @@ import requests
 from datetime import datetime
 from dateutil.parser import parse as parse_date
 
+# Environment variables from GitHub Actions
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-REPO = os.getenv("REPO")
+REPO = os.getenv("REPO")  # format: org/repo
 
 if not GITHUB_TOKEN or not REPO or "/" not in REPO:
     raise Exception(f"❌ GITHUB_TOKEN or REPO not set properly. Got: GITHUB_TOKEN={'set' if GITHUB_TOKEN else 'unset'}, REPO={REPO}")
@@ -16,12 +17,14 @@ HEADERS = {
     "Accept": "application/vnd.github+json"
 }
 
+# Labels & checklist
 REQUIRED_LABEL = "Normal Change Request"
 SECONDARY_LABELS = {"Application", "Infrastructure"}
 DONE_LABEL = "done"
 RESOLUTION_LABEL = "Resolution/Done"
 EXPECTED_CHECKLIST_KEYWORDS = {"assessed", "authorized", "scheduled", "implemented", "reviewed"}
 
+# 1. Get open issues
 def get_issues():
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues"
     params = {"state": "open", "per_page": 100}
@@ -29,17 +32,19 @@ def get_issues():
     response.raise_for_status()
     return response.json()
 
+# 2. Get comments for a given issue
 def get_issue_comments(issue_number):
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/comments"
     response = requests.get(url, headers=HEADERS)
     response.raise_for_status()
     return response.json()
 
+# 3. Check if checklist is present
 def has_required_checklist(comments):
     for comment in comments:
         raw_body = comment["body"].strip().lower()
 
-        # Remove outer bold markdown if wrapped
+        # Remove outer markdown bold (if any)
         if raw_body.startswith("**") and raw_body.endswith("**"):
             raw_body = raw_body[2:-2]
 
@@ -57,6 +62,7 @@ def has_required_checklist(comments):
             return True
     return False
 
+# 4. Check GitHub Project status using GraphQL
 def issue_has_project_status_done(issue_node_id):
     query = """
     query($issueId: ID!) {
@@ -99,24 +105,28 @@ def issue_has_project_status_done(issue_node_id):
             continue
         for field in item["fieldValues"]["nodes"]:
             if field.get("field", {}).get("name") == "Status":
-                status_value = field.get("name", "").strip().lower()
-                print(f"📝 Found project status: {status_value}")
-                if "done" in status_value:
+                status_value = field.get("name", "").strip()
+                print(f"📝 Found project status: '{status_value}'")
+                if "done" in status_value.lower():
+                    print("✅ Matched project status containing 'done'")
                     return True
     return False
 
+# 5. Add labels to issue
 def add_labels(issue_number, labels):
     print(f"🏷️ Adding labels to #{issue_number}: {labels}")
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}/labels"
     response = requests.post(url, headers=HEADERS, json={"labels": labels})
     response.raise_for_status()
 
+# 6. Close the issue
 def close_issue(issue_number):
     print(f"🔒 Closing issue #{issue_number}")
     url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/issues/{issue_number}"
     response = requests.patch(url, headers=HEADERS, json={"state": "closed"})
     response.raise_for_status()
 
+# Main logic
 def main():
     issues = get_issues()
     closed_issues = []
@@ -155,7 +165,7 @@ def main():
             print(f"⏩ Skipped: Project status is not 'Done'\n")
             continue
 
-        # Add necessary labels before closing
+        # Add labels and close
         labels_to_add = [DONE_LABEL]
         if RESOLUTION_LABEL not in labels:
             labels_to_add.append(RESOLUTION_LABEL)
@@ -171,4 +181,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
